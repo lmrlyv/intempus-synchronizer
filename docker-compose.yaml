@@ -1,0 +1,17 @@
+services:
+  app:
+    image: "${IMAGE_NAME?Variable not set}:${TAG-latest}"
+    container_name: intempus-synchronizer-app
+    build:
+      context: .
+      target: dev
+    restart: always
+    ports:
+      - 8000:8000
+    environment:
+      ENVIRONMENT: ${ENVIRONMENT}
+      CORS_ORIGINS: ${CORS_ORIGINS}
+    volumes:
+      - ./.venv/lib:/intempus_synchronizer/.venv/lib
+      - ./app:/intempus_synchronizer/app
+      - ./data:/intempus_synchronizer/data

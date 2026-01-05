@@ -1,0 +1,21 @@
+[[source]]
+url = "https://pypi.org/simple"
+verify_ssl = true
+name = "pypi"
+
+[packages]
+fastapi = {extras = ["standard-no-fastapi-cloud-cli"], version = "*"}
+pydantic-settings = "*"
+sqlmodel = "*"
+tenacity = "*"
+
+[dev-packages]
+black = "*"
+mypy = "*"
+pytest = "*"
+pylint = "*"
+isort = "*"
+flake8 = "*"
+
+[requires]
+python_version = "3.13"
