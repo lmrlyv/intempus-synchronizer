@@ -1,6 +1,8 @@
 from fastapi import Depends
 from sqlmodel import Session, SQLModel, create_engine
 from typing import Annotated
+from app.models.case import Case
+from app.models.sync import SyncMetadata
 
 
 sqlite_file_name = "../data/database.db"

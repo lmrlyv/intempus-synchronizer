@@ -8,11 +8,14 @@ fastapi = {extras = ["standard-no-fastapi-cloud-cli"], version = "*"}
 pydantic-settings = "*"
 sqlmodel = "*"
 tenacity = "*"
+apscheduler = "*"
+httpx = "*"
 
 [dev-packages]
 black = "*"
 mypy = "*"
 pytest = "*"
+pytest-asyncio = "*"
 pylint = "*"
 isort = "*"
 flake8 = "*"
