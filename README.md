@@ -4,6 +4,43 @@ A bidirectional synchronization system that keeps Cases (aka. Projects) in sync 
 
 > :zap: **Note**: This implementation is intentionally simplified to meet the 3-hour assignment requirement. A production-ready design would require additional considerations (see [Production Considerations](#production-considerations) section).
 
+## Prerequisites
+  - `Python 3.13` (recommended way of installation is through `pyenv`, refer to the [pyenv installation](https://github.com/pyenv/pyenv?tab=readme-ov-file#installation) page)
+  - `docker` (refer to the [docker engine installation](https://docs.docker.com/engine/install/) page)
+  - `docker-compose` (refer to the [docker compose installation](https://docs.docker.com/compose/install/) page)
+  - `direnv` (automatic environment setup tool, refer to the [direnv installation](https://direnv.net/docs/installation.html) page)
+    _**Note**: Don't forget to add the following block to the ~/.bashrc file:_
+    ```bash
+    if command -v -- direnv > /dev/null 2>&1; then
+    eval "$(direnv hook bash)"
+    fi
+    ```
+  - `pipenv` (python dependency and virtualenv management tool, install by running `python -m pip install pipenv`)
+    _**Note**: Direnv automatically creates a virtual environment in the repository and installs the required Python dependencies, provided it has been correctly configured._
+
+## Getting started
+
+> _**Note**_: Make sure you are in the project root directory
+
+1.  Allow direnv to load environment variables and create python virtual environment with required python dependencies:
+    ```sh
+    direnv allow
+    ```
+2.  **IMPORTANT**: Make sure to provide INTEMPUS_API_KEY in the `.env` file.
+
+3.  Start the services:
+    _**Note**: This step will automatically build the Docker image for the Django app using the ./Dockerfile and start the necessary side services!_
+    ```sh
+    docker-compose up -d
+    ```
+
+4.  Check the status of the services to ensure they are up and running:
+    ```sh
+    docker-compose ps
+    ```
+
+5.  Access the web app at `http://localhost:8000`.
+
 ## Architecture Overview
 
 The solution consists of three main components:
@@ -74,12 +111,15 @@ The synchronizer uses APScheduler to run background jobs that perform bidirectio
 
 Two types of background jobs handle synchronization:
 
-1. **Incremental Sync Job** (runs frequently)
+1. **Initial Sync Job** (runs only once during the startup)
+   - Populates the metatables for Sync jobs to create baseline synchronization state
+2. **Incremental Sync Job** (runs frequently)
    - Syncs only diffs by using the last-read header `Logical-Timestamp` value in a filter.
    - Less load on the APIs and faster execution due to smaller data sets
 
-2. **Full Sync Job** (runs less frequently)
+3. **Full Sync Job** (runs less frequently)
    - Performs a complete sync to capture deletions
+   - Incremental sync (using logical_timestamp filter) cannot detect deleted cases.
 
 ### Assumptions
 
@@ -100,6 +140,49 @@ When a conflict is detected, Intempus takes precedence as it is assumed to be th
 ### Race Condition Mitigation
 
 To reduce the risk of race conditions described in [API Limitations](#api-limitations), the synchronizer fetches the case from Intempus immediately before and after issuing the update request to confirm the logical_timestamps. However, due to limitations of the Intempus API, race conditions cannot be completely eliminated.
+
+## Testing
+
+The project includes comprehensive test coverage for the synchronization service using pytest.
+
+> Adding test for the System B API and API Clients are out of the scope of this assignment. Therefore, skipped.
+
+### Test Coverage
+
+The test suite covers the following synchronization scenarios:
+
+#### Initial Sync
+- Cases from Intempus are created in System B during initial sync
+- Cases from System B are created in Intempus during initial sync
+
+#### Post-Init Creation
+- New case from Intempus is created in System B after initial sync
+- New case from System B is created in Intempus after initial sync
+
+#### Post-Init Update
+- Update from Intempus is propagated to System B
+- Update from System B is propagated to Intempus
+
+#### Post-Init Deletion
+- Deletion from Intempus is propagated to System B (full sync only)
+- Deletion from System B is propagated to Intempus (full sync only)
+
+#### Circular Update Prevention
+- No circular update loops between Intempus and System B (initiated from Intempus)
+- No circular update loops between Intempus and System B (initiated from System B)
+
+### Running Tests
+
+To run all tests:
+```bash
+pytest
+```
+
+To run tests with verbose output:
+```bash
+pytest -v
+```
+
 
 ## Production Considerations
 
