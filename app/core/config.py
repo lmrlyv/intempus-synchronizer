@@ -21,7 +21,7 @@ class Settings(BaseSettings):
 
     # Intempus API Configuration
     INTEMPUS_API_BASE_URL: str = "https://intempus.dk"
-    INTEMPUS_API_KEY: str
+    INTEMPUS_API_KEY: str = ""
     INTEMPUS_PAGINATION_LIMIT: int = 1000
 
     # System B API Configuration
