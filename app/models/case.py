@@ -30,13 +30,13 @@ class CaseBase(SQLModel):
     responsible_id: str | None = None
     co_responsible_id: str | None = None
     case_state_id: str | None = None
-    creation_date: datetime | None = None
+    creation_date: str | None = None
     parent: str | None = None
     parent_name: str | None = None
     root_parent: str | None = None
     priority: str | None = None
-    start_date: datetime | None = None
-    end_date: datetime | None = None
+    start_date: str | None = None
+    end_date: str | None = None
     number: str | None = None
     name: str | None = None
     street_address: str | None = None
@@ -79,7 +79,7 @@ class CaseCreate(CaseBase):
     All other fields from CaseBase are optional.
     """
 
-    creation_id: str
+    pass
 
 
 class CaseUpdate(CaseBase):

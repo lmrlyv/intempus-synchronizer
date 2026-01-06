@@ -11,7 +11,11 @@ services:
     environment:
       ENVIRONMENT: ${ENVIRONMENT}
       CORS_ORIGINS: ${CORS_ORIGINS}
+      INTEMPUS_API_BASE_URL: ${INTEMPUS_API_BASE_URL}
       INTEMPUS_API_KEY: ${INTEMPUS_API_KEY}
+      SYSTEM_B_API_BASE_URL: ${SYSTEM_B_API_BASE_URL}
+      INCREMENTAL_SYNC_INTERVAL_SECONDS: ${INCREMENTAL_SYNC_INTERVAL_SECONDS}
+      FULL_SYNC_INTERVAL_SECONDS: ${FULL_SYNC_INTERVAL_SECONDS}
     volumes:
       - ./.venv/lib:/intempus_synchronizer/.venv/lib
       - ./app:/intempus_synchronizer/app

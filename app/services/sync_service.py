@@ -116,25 +116,36 @@ class SyncService:
         system_b_cases: list[dict],
     ) -> None:
         """Initialize sync tables with cases from both systems (Scenario 1)."""
+
+        # Get all sync table records
+        all_intempus_sync = session.exec(select(SyncCaseIntempus)).all()
+        all_system_b_sync = session.exec(select(SyncCaseSystemB)).all()
+
+        # Create lookup maps for sync tables
+        intempus_sync_map = {(s.customer_id, s.number): s for s in all_intempus_sync}
+        system_b_sync_map = {(s.customer_id, s.number): s for s in all_system_b_sync}
+
         # Store Intempus cases
         for case in intempus_cases:
-            sync_case = SyncCaseIntempus(
-                case_id=case.get("id"),
-                customer_id=case.get("customer_id"),
-                number=case.get("number"),
-                logical_timestamp=case.get("logical_timestamp"),
-            )
-            session.add(sync_case)
+            if (case.get("customer_id"), case.get("number")) not in intempus_sync_map:
+                sync_case = SyncCaseIntempus(
+                    case_id=case.get("id"),
+                    customer_id=case.get("customer_id"),
+                    number=case.get("number"),
+                    logical_timestamp=case.get("logical_timestamp"),
+                )
+                session.add(sync_case)
 
         # Store System B cases
         for case in system_b_cases:
-            sync_case = SyncCaseSystemB(
-                case_id=case.get("id"),
-                customer_id=case.get("customer_id"),
-                number=case.get("number"),
-                logical_timestamp=case.get("logical_timestamp"),
-            )
-            session.add(sync_case)
+            if (case.get("customer_id"), case.get("number")) not in system_b_sync_map:
+                sync_case = SyncCaseSystemB(
+                    case_id=case.get("id"),
+                    customer_id=case.get("customer_id"),
+                    number=case.get("number"),
+                    logical_timestamp=case.get("logical_timestamp"),
+                )
+                session.add(sync_case)
 
         session.commit()
 
@@ -155,12 +166,12 @@ class SyncService:
         # Cases in Intempus but not in System B
         for key, intempus_case in intempus_map.items():
             if key not in system_b_map:
-                await self._create_case_in_system_b(session, intempus_case)
+                await self._propagate_creation_to_system_b(session, intempus_case)
 
         # Cases in System B but not in Intempus
         for key, system_b_case in system_b_map.items():
             if key not in intempus_map:
-                await self._create_case_in_intempus(session, system_b_case)
+                await self._propagate_creation_to_intempus(session, system_b_case)
 
     async def _process_sync_scenarios(
         self,
@@ -179,12 +190,8 @@ class SyncService:
         all_system_b_sync = session.exec(select(SyncCaseSystemB)).all()
 
         # Create lookup maps for sync tables
-        intempus_sync_map = {
-            (s.customer_id, s.number): s for s in all_intempus_sync if s.customer_id and s.number
-        }
-        system_b_sync_map = {
-            (s.customer_id, s.number): s for s in all_system_b_sync if s.customer_id and s.number
-        }
+        intempus_sync_map = {(s.customer_id, s.number): s for s in all_intempus_sync}
+        system_b_sync_map = {(s.customer_id, s.number): s for s in all_system_b_sync}
 
         # Process each case from Intempus
         for key, intempus_case in intempus_map.items():
@@ -213,14 +220,20 @@ class SyncService:
                 if not system_b_sync:
                     # Case is updated in Intempus, but it is not tracked for System B
                     # Propagate update to System B
-                    await self._propagate_update_to_system_b(session, intempus_case, system_b_sync)
+                    await self._propagate_update_to_system_b(session, intempus_case, system_b_case)
                 else:
                     # Case is updated in Intempus and it is tracked for System B
                     if not system_b_case:
                         # Case is updated in Intempus and it is not updated in System B
                         # Propagate update to System B
+                        system_b_case = {
+                            "id": system_b_sync.case_id,
+                            "customer_id": system_b_sync.customer_id,
+                            "number": system_b_sync.number,
+                            "logical_timestamp": system_b_sync.logical_timestamp,
+                        }
                         await self._propagate_update_to_system_b(
-                            session, intempus_case, system_b_sync
+                            session, intempus_case, system_b_case
                         )
                     else:
                         # Case is updated in Intempus and it could be updated in System B.
@@ -228,13 +241,13 @@ class SyncService:
                             # Case is updated in both Intempus and System B. Merge conflict
                             # Propagate update to System B
                             await self._propagate_update_to_system_b(
-                                session, intempus_case, system_b_sync
+                                session, intempus_case, system_b_case
                             )
                         else:
                             # Case is updated in Intempus and it is not updated in System B
                             # Propagate update to System B
                             await self._propagate_update_to_system_b(
-                                session, intempus_case, system_b_sync
+                                session, intempus_case, system_b_case
                             )
 
         # Process each case from System B (for cases not in Intempus)
@@ -295,6 +308,12 @@ class SyncService:
                     if not intempus_case:
                         # Case updated in System B, and is not updated in Intempus
                         # Propagate update to Intempus
+                        intempus_case = {
+                            "id": intempus_sync.case_id,
+                            "customer_id": intempus_sync.customer_id,
+                            "number": intempus_sync.number,
+                            "logical_timestamp": intempus_sync.logical_timestamp,
+                        }
                         await self._propagate_update_to_intempus(
                             session, system_b_case, intempus_case
                         )

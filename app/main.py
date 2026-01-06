@@ -1,15 +1,15 @@
+import asyncio
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.routing import APIRoute
 from contextlib import asynccontextmanager
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.interval import IntervalTrigger
-
 from app.api import router
 from app.core.config import settings
 from app.core.logging import get_logger, setup_logging
 from app.core.db import init_db
-from app.sync_jobs import run_incremental_sync_job, run_full_sync_job
+from app.sync_jobs import run_initial_sync_and_schedule_jobs
 
 
 # Initialize logging before creating logger
@@ -27,29 +27,10 @@ async def lifespan(app: FastAPI):
     init_db()
 
     scheduler = BackgroundScheduler()
-
-    # Schedule sync jobs
-    scheduler.add_job(
-        run_incremental_sync_job,
-        trigger=IntervalTrigger(seconds=settings.INCREMENTAL_SYNC_INTERVAL_SECONDS),
-        id="incremental_sync",
-        name="Incremental Sync Job",
-        replace_existing=True,
-    )
-
-    scheduler.add_job(
-        run_full_sync_job,
-        trigger=IntervalTrigger(seconds=settings.FULL_SYNC_INTERVAL_SECONDS),
-        id="full_sync",
-        name="Full Sync Job",
-        replace_existing=True,
-    )
-
     scheduler.start()
-    logger.info(
-        f"Scheduler started - Incremental sync every {settings.INCREMENTAL_SYNC_INTERVAL_SECONDS}s, "
-        f"Full sync every {settings.FULL_SYNC_INTERVAL_SECONDS}s"
-    )
+    logger.info("Scheduler started")
+
+    asyncio.create_task(run_initial_sync_and_schedule_jobs(scheduler))
 
     yield
 
