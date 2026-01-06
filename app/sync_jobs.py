@@ -1,12 +1,15 @@
 """Background sync jobs for synchronizing between Intempus and System B."""
 
 import asyncio
+
 import httpx
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.interval import IntervalTrigger
+
 from app.core.config import settings
 from app.core.logging import get_logger
 from app.services.sync_service import SyncService
+
 
 logger = get_logger(__name__)
 

@@ -1,14 +1,15 @@
 import asyncio
+from contextlib import asynccontextmanager
+
+from apscheduler.schedulers.background import BackgroundScheduler
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.routing import APIRoute
-from contextlib import asynccontextmanager
-from apscheduler.schedulers.background import BackgroundScheduler
-from apscheduler.triggers.interval import IntervalTrigger
+
 from app.api import router
 from app.core.config import settings
-from app.core.logging import get_logger, setup_logging
 from app.core.db import init_db
+from app.core.logging import get_logger, setup_logging
 from app.sync_jobs import run_initial_sync_and_schedule_jobs
 
 

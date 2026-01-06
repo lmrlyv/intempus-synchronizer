@@ -1,13 +1,15 @@
 """Synchronization service for bidirectional sync between Intempus and System B."""
 
+from httpx import HTTPStatusError
 from sqlmodel import Session, select
+
 from app.core.db import engine
 from app.core.logging import get_logger
-from app.models.sync import SyncMetadata, SyncCaseIntempus, SyncCaseSystemB
+from app.models.case import CaseCreate, CaseUpdate
+from app.models.sync import SyncCaseIntempus, SyncCaseSystemB, SyncMetadata
 from app.services.intempus_client import IntempusClient
 from app.services.system_b_client import SystemBClient
-from httpx import HTTPStatusError
-from app.models.case import CaseCreate, CaseUpdate
+
 
 logger = get_logger(__name__)
 

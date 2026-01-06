@@ -1,10 +1,13 @@
-from fastapi import APIRouter, HTTPException, Header, Response, Query, Path, status
-from sqlmodel import Session, select
 from typing import Annotated
-from app.core.logging import get_logger
+
+from fastapi import APIRouter, Header, HTTPException, Path, Query, Response, status
+from sqlmodel import Session, select
+
 from app.core.db import SessionDep
-from app.models.case import Case, CasePublic, CaseCreate, CaseUpdate
+from app.core.logging import get_logger
+from app.models.case import Case, CaseCreate, CasePublic, CaseUpdate
 from app.services.logical_timestamp import LogicalTimestampManager
+
 
 logger = get_logger(__name__)
 

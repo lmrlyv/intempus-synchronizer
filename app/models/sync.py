@@ -1,4 +1,4 @@
-from sqlmodel import SQLModel, Field, Index
+from sqlmodel import Field, Index, SQLModel
 
 
 class SyncMetadata(SQLModel, table=True):
