@@ -99,9 +99,6 @@ SQLite database with two tables:
   - `logical_timestamp` (local implementation)
   - All fields of the case resource that can be updated through the Intempus API "Update Case" endpoint
 
-- **`case_metadata`**
-  - `max_logical_timestamp` - Tracks the maximum logical timestamp across all cases (to avoid performing MAX aggregation on the case table for every fetch request)
-    > **Note**: In a production system, an in-memory store like Redis would be more appropriate for this metadata. This method is chosen for simplicity.
 
 ## Synchronizer
 
@@ -133,6 +130,9 @@ The synchronization logic is built on the following assumptions:
 
 - **Eventual consistency**: The aim is to achieve eventual consistency. So, temporary divergence between systems is acceptable during sync intervals.
 
+- **Pre-sync state**: Before the synchronizer is started, the systems do not have the same case resource, or they are in sync already.
+   > Since the baseline synchronization state is not initialized yet, we won't know which version is newer. So, the cases may need to go through the manual review process.
+
 ### Conflict Resolution
 
 When a conflict is detected, Intempus takes precedence as it is assumed to be the source of truth. The synchronizer will overwrite the conflicting case in System B with Intempus's version.
@@ -162,6 +162,7 @@ The test suite covers the following synchronization scenarios:
 #### Post-Init Update
 - Update from Intempus is propagated to System B
 - Update from System B is propagated to Intempus
+- In the event of a merge conflict, System B is updated with the Intempus version (refer to [Conflict Resolution Strategy](#conflict-resolution))
 
 #### Post-Init Deletion
 - Deletion from Intempus is propagated to System B (full sync only)
@@ -193,4 +194,6 @@ For a production-ready implementation of Synchronizer, the following improvement
 - Ensure only one worker processes a given case at any time by utilizing locks. This would prevent race conditions in a multi-worker environment while allowing parallel processing of different cases.
 - Rather than treating cases as atomic units, track changes at the field level. This will enable smarter merging as non-conflicting fields could be automatically combined, potentially leading to reduced merge conflicts.
 - Use of dead letter queues for failed sync operation to enable manual review.
+- Implementation of retry mechanisms with exponential backoff when propagating actions to handle transient failures such as network errors, temporary API unavailability.
 - Use in-memory database such as Redis to cache frequently accessed data like logical_timestamps. It could also be used to lock cases for sync workers.
+- Incorporate rate-limiting strategies such as token bucket to stay within the API rate limits of external systems.
