@@ -1,9 +1,8 @@
 """Tests for SyncService synchronization scenarios."""
 
 import pytest
-from unittest.mock import patch
 from sqlmodel import select
-from app.services.sync_service import SyncService
+
 from app.models.sync import SyncCaseIntempus, SyncCaseSystemB
 
 
@@ -12,9 +11,12 @@ class TestInitialSync:
 
     @pytest.mark.asyncio
     async def test_initial_sync_cases_from_intempus_to_system_b(
-        self, db_session, mock_intempus_client, mock_system_b_client, sample_case_data
+        self, db_session, mock_sync_service, sample_case_data
     ):
         """Initial sync - cases from Intempus are created in System B."""
+        mock_intempus_client = mock_sync_service.intempus_client
+        mock_system_b_client = mock_sync_service.system_b_client
+
         # Setup: Intempus has cases, System B is empty
         intempus_case = sample_case_data.copy()
         intempus_case["logical_timestamp"] = 100
@@ -28,19 +30,8 @@ class TestInitialSync:
         created_case["logical_timestamp"] = 1
         mock_system_b_client.create_case.return_value = created_case
 
-        # Create SyncService with mocked clients
-        with patch.object(SyncService, "__init__", lambda self: None):
-            sync_service = SyncService()
-            sync_service.intempus_client = mock_intempus_client
-            sync_service.system_b_client = mock_system_b_client
-
-            # Mock Session to return our test session
-            with patch("app.services.sync_service.Session") as mock_session_class:
-                mock_session_class.return_value.__enter__.return_value = db_session
-                mock_session_class.return_value.__exit__.return_value = None
-
-                # Run initial sync
-                await sync_service.sync(is_full_sync=True, is_initialization=True)
+        # Run initial sync
+        await mock_sync_service.sync(is_full_sync=True, is_initialization=True)
 
         # Verify: Case was created in System B
         mock_system_b_client.create_case.assert_called_once()
@@ -61,10 +52,13 @@ class TestInitialSync:
 
     @pytest.mark.asyncio
     async def test_initial_sync_cases_from_system_b_to_intempus(
-        self, db_session, mock_intempus_client, mock_system_b_client, sample_case_data
+        self, db_session, mock_sync_service, sample_case_data
     ):
         """Initial sync - cases from System B are created in Intempus."""
         # Setup: System B has cases, Intempus is empty
+        mock_intempus_client = mock_sync_service.intempus_client
+        mock_system_b_client = mock_sync_service.system_b_client
+
         system_b_case = sample_case_data.copy()
         system_b_case["logical_timestamp"] = 50
 
@@ -79,19 +73,8 @@ class TestInitialSync:
         # After create_case, sync_service calls get_case to get reliable logical_timestamp
         mock_intempus_client.get_case.return_value = created_case
 
-        # Create SyncService with mocked clients
-        with patch.object(SyncService, "__init__", lambda self: None):
-            sync_service = SyncService()
-            sync_service.intempus_client = mock_intempus_client
-            sync_service.system_b_client = mock_system_b_client
-
-            # Mock Session to return our test session
-            with patch("app.services.sync_service.Session") as mock_session_class:
-                mock_session_class.return_value.__enter__.return_value = db_session
-                mock_session_class.return_value.__exit__.return_value = None
-
-                # Run initial sync
-                await sync_service.sync(is_full_sync=True, is_initialization=True)
+        # Run initial sync
+        await mock_sync_service.sync(is_full_sync=True, is_initialization=True)
 
         # Verify: Case was created in Intempus
         mock_intempus_client.create_case.assert_called_once()
@@ -116,9 +99,12 @@ class TestPostInitCreation:
 
     @pytest.mark.asyncio
     async def test_creation_from_intempus_after_initial_sync(
-        self, db_session, mock_intempus_client, mock_system_b_client, sample_case_data
+        self, db_session, mock_sync_service, sample_case_data
     ):
         """New case from Intempus is created in System B after initial sync."""
+        mock_intempus_client = mock_sync_service.intempus_client
+        mock_system_b_client = mock_sync_service.system_b_client
+
         # Setup: Existing sync data
         existing_intempus_case = sample_case_data.copy()
         existing_intempus_case["id"] = 1
@@ -155,19 +141,8 @@ class TestPostInitCreation:
         created_case["logical_timestamp"] = 5
         mock_system_b_client.create_case.return_value = created_case
 
-        # Create SyncService
-        with patch.object(SyncService, "__init__", lambda self: None):
-            sync_service = SyncService()
-            sync_service.intempus_client = mock_intempus_client
-            sync_service.system_b_client = mock_system_b_client
-
-            # Mock Session to return our test session
-            with patch("app.services.sync_service.Session") as mock_session_class:
-                mock_session_class.return_value.__enter__.return_value = db_session
-                mock_session_class.return_value.__exit__.return_value = None
-
-                # Run incremental sync
-                await sync_service.sync(is_full_sync=False, is_initialization=False)
+        # Run incremental sync
+        await mock_sync_service.sync(is_full_sync=False, is_initialization=False)
 
         # Verify: New case was created in System B
         create_calls = [call[0][0] for call in mock_system_b_client.create_case.call_args_list]
@@ -187,9 +162,12 @@ class TestPostInitCreation:
 
     @pytest.mark.asyncio
     async def test_creation_from_system_b_after_initial_sync(
-        self, db_session, mock_intempus_client, mock_system_b_client, sample_case_data
+        self, db_session, mock_sync_service, sample_case_data
     ):
         """New case from System B is created in Intempus after initial sync."""
+        mock_intempus_client = mock_sync_service.intempus_client
+        mock_system_b_client = mock_sync_service.system_b_client
+
         # Setup: Existing sync data
         existing_system_b_case = sample_case_data.copy()
         existing_system_b_case["id"] = 1
@@ -228,19 +206,8 @@ class TestPostInitCreation:
         # After create_case, sync_service calls get_case to get reliable logical_timestamp
         mock_intempus_client.get_case.return_value = created_case
 
-        # Create SyncService
-        with patch.object(SyncService, "__init__", lambda self: None):
-            sync_service = SyncService()
-            sync_service.intempus_client = mock_intempus_client
-            sync_service.system_b_client = mock_system_b_client
-
-            # Mock Session to return our test session
-            with patch("app.services.sync_service.Session") as mock_session_class:
-                mock_session_class.return_value.__enter__.return_value = db_session
-                mock_session_class.return_value.__exit__.return_value = None
-
-                # Run incremental sync
-                await sync_service.sync(is_full_sync=False, is_initialization=False)
+        # Run incremental sync
+        await mock_sync_service.sync(is_full_sync=False, is_initialization=False)
 
         # Verify: New case was created in Intempus
         create_calls = [call[0][0] for call in mock_intempus_client.create_case.call_args_list]
@@ -264,9 +231,12 @@ class TestPostInitUpdate:
 
     @pytest.mark.asyncio
     async def test_update_from_intempus_propagated_to_system_b(
-        self, db_session, mock_intempus_client, mock_system_b_client, sample_case_data
+        self, db_session, mock_sync_service, sample_case_data
     ):
         """Update from Intempus is propagated to System B."""
+        mock_intempus_client = mock_sync_service.intempus_client
+        mock_system_b_client = mock_sync_service.system_b_client
+
         # Setup: Existing sync data
         intempus_case = sample_case_data.copy()
         intempus_case["id"] = 1
@@ -301,35 +271,29 @@ class TestPostInitUpdate:
         updated_case["logical_timestamp"] = 6
         mock_system_b_client.update_case.return_value = updated_case
 
-        # Create SyncService
-        with patch.object(SyncService, "__init__", lambda self: None):
-            sync_service = SyncService()
-            sync_service.intempus_client = mock_intempus_client
-            sync_service.system_b_client = mock_system_b_client
-
-            # Mock Session to return our test session
-            with patch("app.services.sync_service.Session") as mock_session_class:
-                mock_session_class.return_value.__enter__.return_value = db_session
-                mock_session_class.return_value.__exit__.return_value = None
-
-                # Run incremental sync
-                await sync_service.sync(is_full_sync=False, is_initialization=False)
+        # Run incremental sync
+        await mock_sync_service.sync(is_full_sync=False, is_initialization=False)
 
         # Verify: System B was updated
         mock_system_b_client.update_case.assert_called_once()
         call_args = mock_system_b_client.update_case.call_args
         assert call_args[0][0] == 10  # case_id
-        assert call_args[1]["if_match"] == 5  # logical_timestamp as keyword argument
+        assert call_args[1]["if_match"] == 5  # old logical_timestamp for conditional update
 
-        # Verify: SyncCaseSystemB was updated
+        # Verify: SyncCaseIntempus and SyncCaseSystemB tables were updated
+        db_session.refresh(sync_intempus)
         db_session.refresh(sync_system_b)
+        assert sync_intempus.logical_timestamp == 150
         assert sync_system_b.logical_timestamp == 6
 
     @pytest.mark.asyncio
     async def test_update_from_system_b_propagated_to_intempus(
-        self, db_session, mock_intempus_client, mock_system_b_client, sample_case_data
+        self, db_session, mock_sync_service, sample_case_data
     ):
         """Update from System B is propagated to Intempus."""
+        mock_intempus_client = mock_sync_service.intempus_client
+        mock_system_b_client = mock_sync_service.system_b_client
+
         # Setup: Existing sync data
         intempus_case = sample_case_data.copy()
         intempus_case["id"] = 1
@@ -369,28 +333,78 @@ class TestPostInitUpdate:
             updated_intempus_case,  # Second call after update
         ]
 
-        # Create SyncService
-        with patch.object(SyncService, "__init__", lambda self: None):
-            sync_service = SyncService()
-            sync_service.intempus_client = mock_intempus_client
-            sync_service.system_b_client = mock_system_b_client
-
-            # Mock Session to return our test session
-            with patch("app.services.sync_service.Session") as mock_session_class:
-                mock_session_class.return_value.__enter__.return_value = db_session
-                mock_session_class.return_value.__exit__.return_value = None
-
-                # Run incremental sync
-                await sync_service.sync(is_full_sync=False, is_initialization=False)
+        # Run incremental sync
+        await mock_sync_service.sync(is_full_sync=False, is_initialization=False)
 
         # Verify: Intempus was updated
         assert mock_intempus_client.update_case.called
-        call_args = mock_intempus_client.update_case.call_args
-        assert call_args[0][0] == 1  # case_id
+        assert mock_intempus_client.update_case.call_args[0][0] == 1  # case_id
 
-        # Verify: SyncCaseIntempus was updated
+        # Verify: SyncCaseIntempus and SyncCaseSystemB tables were updated
         db_session.refresh(sync_intempus)
+        db_session.refresh(sync_system_b)
         assert sync_intempus.logical_timestamp == 200
+        assert sync_system_b.logical_timestamp == 6
+
+    @pytest.mark.asyncio
+    async def test_update_merge_conflict_intempus_to_system_b(
+        self, db_session, mock_sync_service, sample_case_data
+    ):
+        """Update System B with case from Intempus during merge conflict."""
+        mock_intempus_client = mock_sync_service.intempus_client
+        mock_system_b_client = mock_sync_service.system_b_client
+
+        # Setup: Existing sync data
+        intempus_case = sample_case_data.copy()
+        intempus_case["id"] = 1
+        intempus_case["logical_timestamp"] = 150  # Updated from 100
+
+        system_b_case = sample_case_data.copy()
+        system_b_case["id"] = 10
+        system_b_case["logical_timestamp"] = 6  # Updated from 5
+
+        # Create sync records
+        sync_intempus = SyncCaseIntempus(
+            case_id=1,
+            customer_id="customer1",
+            number="1",
+            logical_timestamp=100,
+        )
+        sync_system_b = SyncCaseSystemB(
+            case_id=10,
+            customer_id="customer1",
+            number="1",
+            logical_timestamp=5,
+        )
+        db_session.add(sync_intempus)
+        db_session.add(sync_system_b)
+        db_session.commit()
+
+        mock_intempus_client.get_cases.return_value = ([intempus_case], 150)
+        mock_system_b_client.get_cases.return_value = ([system_b_case], 6)
+
+        # Mock System B update_case
+        updated_case = system_b_case.copy()
+        updated_case["logical_timestamp"] = 7
+        mock_system_b_client.update_case.return_value = updated_case
+
+        # Run incremental sync
+        await mock_sync_service.sync(is_full_sync=False, is_initialization=False)
+
+        # Verify: Intempus was not updated
+        assert not mock_intempus_client.update_case.called
+
+        # Verify: System B was updated
+        assert mock_system_b_client.update_case.called
+        call_args = mock_system_b_client.update_case.call_args
+        assert call_args[0][0] == 10  # case_id
+        assert call_args[1]["if_match"] == 6  # logical_timestamp for conditional update
+
+        # Verify: SyncCaseSystemB was updated
+        db_session.refresh(sync_intempus)
+        db_session.refresh(sync_system_b)
+        assert sync_intempus.logical_timestamp == 150
+        assert sync_system_b.logical_timestamp == 7
 
 
 class TestPostInitDeletion:
@@ -398,9 +412,12 @@ class TestPostInitDeletion:
 
     @pytest.mark.asyncio
     async def test_deletion_from_intempus_propagated_to_system_b(
-        self, db_session, mock_intempus_client, mock_system_b_client, sample_case_data
+        self, db_session, mock_sync_service, sample_case_data
     ):
         """Deletion from Intempus is propagated to System B (full sync only)."""
+        mock_intempus_client = mock_sync_service.intempus_client
+        mock_system_b_client = mock_sync_service.system_b_client
+
         # Setup: Existing sync data
         system_b_case = sample_case_data.copy()
         system_b_case["id"] = 10
@@ -430,19 +447,8 @@ class TestPostInitDeletion:
         # Mock System B delete_case
         mock_system_b_client.delete_case.return_value = None
 
-        # Create SyncService
-        with patch.object(SyncService, "__init__", lambda self: None):
-            sync_service = SyncService()
-            sync_service.intempus_client = mock_intempus_client
-            sync_service.system_b_client = mock_system_b_client
-
-            # Mock Session to return our test session
-            with patch("app.services.sync_service.Session") as mock_session_class:
-                mock_session_class.return_value.__enter__.return_value = db_session
-                mock_session_class.return_value.__exit__.return_value = None
-
-                # Run full sync (deletions only detected in full sync)
-                await sync_service.sync(is_full_sync=True, is_initialization=False)
+        # Run full sync
+        await mock_sync_service.sync(is_full_sync=True, is_initialization=False)
 
         # Verify: System B case was deleted
         mock_system_b_client.delete_case.assert_called_once_with(10)
@@ -455,9 +461,12 @@ class TestPostInitDeletion:
 
     @pytest.mark.asyncio
     async def test_deletion_from_system_b_propagated_to_intempus(
-        self, db_session, mock_intempus_client, mock_system_b_client, sample_case_data
+        self, db_session, mock_sync_service, sample_case_data
     ):
         """Deletion from System B is propagated to Intempus (full sync only)."""
+        mock_intempus_client = mock_sync_service.intempus_client
+        mock_system_b_client = mock_sync_service.system_b_client
+
         # Setup: Existing sync data
         intempus_case = sample_case_data.copy()
         intempus_case["id"] = 1
@@ -487,19 +496,8 @@ class TestPostInitDeletion:
         # Mock Intempus delete_case
         mock_intempus_client.delete_case.return_value = None
 
-        # Create SyncService
-        with patch.object(SyncService, "__init__", lambda self: None):
-            sync_service = SyncService()
-            sync_service.intempus_client = mock_intempus_client
-            sync_service.system_b_client = mock_system_b_client
-
-            # Mock Session to return our test session
-            with patch("app.services.sync_service.Session") as mock_session_class:
-                mock_session_class.return_value.__enter__.return_value = db_session
-                mock_session_class.return_value.__exit__.return_value = None
-
-                # Run full sync (deletions only detected in full sync)
-                await sync_service.sync(is_full_sync=True, is_initialization=False)
+        # Run full sync
+        await mock_sync_service.sync(is_full_sync=True, is_initialization=False)
 
         # Verify: Intempus case was deleted
         mock_intempus_client.delete_case.assert_called_once_with(1)
@@ -516,9 +514,12 @@ class TestCircularUpdatePrevention:
 
     @pytest.mark.asyncio
     async def test_no_circular_update_intempus_to_system_b(
-        self, db_session, mock_intempus_client, mock_system_b_client, sample_case_data
+        self, db_session, mock_sync_service, sample_case_data
     ):
         """No circular update when Intempus updates trigger System B update and vice versa."""
+        mock_intempus_client = mock_sync_service.intempus_client
+        mock_system_b_client = mock_sync_service.system_b_client
+
         # Setup: Intempus case updated
         intempus_case = sample_case_data.copy()
         intempus_case["id"] = 1
@@ -553,43 +554,31 @@ class TestCircularUpdatePrevention:
         updated_system_b_case["logical_timestamp"] = 6
         mock_system_b_client.update_case.return_value = updated_system_b_case
 
-        # Create SyncService
-        with patch.object(SyncService, "__init__", lambda self: None):
-            sync_service = SyncService()
-            sync_service.intempus_client = mock_intempus_client
-            sync_service.system_b_client = mock_system_b_client
+        # Run first sync
+        await mock_sync_service.sync(is_full_sync=False, is_initialization=False)
 
-            # Mock Session to return our test session
-            with patch("app.services.sync_service.Session") as mock_session_class:
-                mock_session_class.return_value.__enter__.return_value = db_session
-                mock_session_class.return_value.__exit__.return_value = None
+        # Verify: System B was updated once
+        assert mock_system_b_client.update_case.call_count == 1
 
-                # Run first sync
-                await sync_service.sync(is_full_sync=False, is_initialization=False)
+        # Update System B client with updated case and run sync again
+        updated_system_b_case_2 = updated_system_b_case.copy()
+        updated_system_b_case_2["logical_timestamp"] = 6  # Same timestamp
+        mock_system_b_client.get_cases.return_value = ([updated_system_b_case_2], 6)
+        mock_intempus_client.get_case.return_value = intempus_case
 
-            # Verify: System B was updated once
-            assert mock_system_b_client.update_case.call_count == 1
+        await mock_sync_service.sync(is_full_sync=False, is_initialization=False)
 
-            updated_system_b_case_2 = updated_system_b_case.copy()
-            updated_system_b_case_2["logical_timestamp"] = 6  # Same timestamp
-            mock_system_b_client.get_cases.return_value = ([updated_system_b_case_2], 6)
-            mock_intempus_client.get_case.return_value = intempus_case
-
-            # Run second sync
-            with patch("app.services.sync_service.Session") as mock_session_class:
-                mock_session_class.return_value.__enter__.return_value = db_session
-                mock_session_class.return_value.__exit__.return_value = None
-
-                await sync_service.sync(is_full_sync=False, is_initialization=False)
-
-            # Verify: System B was NOT updated again (no circular update)
-            assert not mock_intempus_client.update_case.called
+        # Verify: System B was NOT updated again (no circular update)
+        assert not mock_intempus_client.update_case.called
 
     @pytest.mark.asyncio
     async def test_no_circular_update_system_b_to_intempus(
-        self, db_session, mock_intempus_client, mock_system_b_client, sample_case_data
+        self, db_session, mock_sync_service, sample_case_data
     ):
         """No circular update when System B updates trigger Intempus update and vice versa."""
+        mock_intempus_client = mock_sync_service.intempus_client
+        mock_system_b_client = mock_sync_service.system_b_client
+
         # Setup: System B case updated
         intempus_case = sample_case_data.copy()
         intempus_case["id"] = 1
@@ -629,34 +618,19 @@ class TestCircularUpdatePrevention:
             updated_intempus_case,  # Second call after update
         ]
 
-        # Create SyncService
-        with patch.object(SyncService, "__init__", lambda self: None):
-            sync_service = SyncService()
-            sync_service.intempus_client = mock_intempus_client
-            sync_service.system_b_client = mock_system_b_client
+        # Run first sync
+        await mock_sync_service.sync(is_full_sync=False, is_initialization=False)
 
-            # Mock Session to return our test session
-            with patch("app.services.sync_service.Session") as mock_session_class:
-                mock_session_class.return_value.__enter__.return_value = db_session
-                mock_session_class.return_value.__exit__.return_value = None
+        # Verify: Intempus was updated once
+        assert mock_intempus_client.update_case.call_count == 1
 
-                # Run first sync
-                await sync_service.sync(is_full_sync=False, is_initialization=False)
+        # Update Intempus client with updated case and run sync again
+        updated_intempus_case_2 = updated_intempus_case.copy()
+        updated_intempus_case_2["logical_timestamp"] = 200  # Same timestamp
+        mock_intempus_client.get_cases.return_value = ([updated_intempus_case_2], 200)
 
-            # Verify: Intempus was updated once
-            assert mock_intempus_client.update_case.call_count == 1
-
-            # Reset mocks and run sync again
-            updated_intempus_case_2 = updated_intempus_case.copy()
-            updated_intempus_case_2["logical_timestamp"] = 200  # Same timestamp
-            mock_intempus_client.get_cases.return_value = ([updated_intempus_case_2], 200)
-
-            # Run second sync
-            with patch("app.services.sync_service.Session") as mock_session_class:
-                mock_session_class.return_value.__enter__.return_value = db_session
-                mock_session_class.return_value.__exit__.return_value = None
-
-                await sync_service.sync(is_full_sync=False, is_initialization=False)
+        # Run second sync
+        await mock_sync_service.sync(is_full_sync=False, is_initialization=False)
 
         # Verify: Intempus was NOT updated again (no circular update)
         assert not mock_system_b_client.update_case.called

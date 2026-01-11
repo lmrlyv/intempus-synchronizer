@@ -1,11 +1,14 @@
 """Pytest configuration and fixtures."""
 
+from unittest.mock import AsyncMock, MagicMock, patch
+
 import pytest
-from unittest.mock import AsyncMock, MagicMock
-from sqlmodel import Session, create_engine, SQLModel
+from sqlmodel import Session, SQLModel, create_engine
 from sqlmodel.pool import StaticPool
+
 from app.models.sync import SyncMetadata
 from app.services.intempus_client import IntempusClient
+from app.services.sync_service import SyncService
 from app.services.system_b_client import SystemBClient
 
 
@@ -51,6 +54,19 @@ def mock_system_b_client():
     client.delete_case = AsyncMock()
     client.close = AsyncMock()
     return client
+
+
+@pytest.fixture
+def mock_sync_service(db_session, mock_intempus_client, mock_system_b_client):
+    with patch.object(SyncService, "__init__", lambda self: None):
+        sync_service = SyncService()
+        sync_service.intempus_client = mock_intempus_client
+        sync_service.system_b_client = mock_system_b_client
+
+        with patch("app.services.sync_service.Session") as mock_session_class:
+            mock_session_class.return_value.__enter__.return_value = db_session
+            mock_session_class.return_value.__exit__.return_value = None
+            yield sync_service
 
 
 @pytest.fixture
